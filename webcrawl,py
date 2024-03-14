@@ -1,0 +1,50 @@
+#!/bin/python3
+# Written by zwerd
+# This script recursively crawls a web page to extract all URLs from href attributes
+# Usage: ./webcrawl.py <url>
+
+import requests
+from bs4 import BeautifulSoup
+import sys
+from urllib.parse import urljoin, urlparse
+
+visited_urls = set()
+
+def crawl_and_extract_urls(url):
+    global visited_urls
+    try:
+        if url in visited_urls:
+            return  # Skip if URL is already visited
+        visited_urls.add(url)
+        
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an exception for 4xx or 5xx status codes
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Get the base URL
+        base_url = response.url
+
+        # Find all href URLs
+        href_urls = [tag.get('href') for tag in soup.find_all(href=True) if not tag.get('href').startswith('mailto:')]
+        for href_url in href_urls:
+            # Handle relative URLs
+            full_url = urljoin(base_url, href_url)
+            
+            # Check if the full URL points to the same domain and has the same scheme
+            parsed_base_url = urlparse(base_url)
+            parsed_full_url = urlparse(full_url)
+            if parsed_base_url.netloc == parsed_full_url.netloc and parsed_base_url.scheme == parsed_full_url.scheme:
+                print(full_url)
+                # Recursively crawl each URL to find more href URLs
+                crawl_and_extract_urls(full_url)
+    except Exception as e:
+        print(f"Error crawling URL {url}: {e}")
+
+if __name__ == "__main__":
+    # Check if URL argument is provided
+    if len(sys.argv) != 2:
+        print("Usage: python webcrawl.py <url>")
+        sys.exit(1)
+
+    url = sys.argv[1]
+    crawl_and_extract_urls(url)
